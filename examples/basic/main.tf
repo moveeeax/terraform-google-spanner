@@ -21,11 +21,18 @@ module "spanner" {
   name         = "example-instance"
   display_name = "Example Spanner"
   config       = "regional-${var.region}"
-  num_nodes    = 1
+
+  # 100 processing units is the smallest billable Spanner instance; a full node
+  # is 1000 processing units and roughly ten times the cost.
+  processing_units = 100
 
   databases = {
     app = {
-      deletion_protection = false
+      # deletion_protection is deliberately left at its default of true.
+      # To tear this example down: set it to false, `terraform apply`, then
+      # `terraform destroy`. Spanner keeps no backups by default, so the extra
+      # step is the point.
+      version_retention_period = "3d"
     }
   }
 }
