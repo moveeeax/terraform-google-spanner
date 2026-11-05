@@ -8,7 +8,7 @@ databases driven by a map input.
 
 ```hcl
 module "spanner" {
-  source = "github.com/moveeeax/terraform-google-spanner"
+  source = "github.com/moveeeax/terraform-google-spanner?ref=v1.0.0"
 
   project_id   = var.project_id
   name         = "prod-instance"
