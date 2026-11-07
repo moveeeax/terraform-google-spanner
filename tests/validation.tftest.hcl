@@ -124,3 +124,110 @@ run "rejects_short_form_kms_key_name" {
 
   expect_failures = [var.databases]
 }
+
+run "rejects_autoscaling_with_num_nodes" {
+  command = plan
+
+  variables {
+    num_nodes = 1
+    autoscaling = {
+      min_processing_units                  = 1000
+      max_processing_units                  = 2000
+      high_priority_cpu_utilization_percent = 65
+      storage_utilization_percent           = 95
+    }
+  }
+
+  expect_failures = [google_spanner_instance.this]
+}
+
+run "rejects_autoscaling_with_processing_units" {
+  command = plan
+
+  variables {
+    processing_units = 1000
+    autoscaling = {
+      min_processing_units                  = 1000
+      max_processing_units                  = 2000
+      high_priority_cpu_utilization_percent = 65
+      storage_utilization_percent           = 95
+    }
+  }
+
+  expect_failures = [google_spanner_instance.this]
+}
+
+run "rejects_autoscaling_limits_not_multiple_of_1000" {
+  command = plan
+
+  variables {
+    autoscaling = {
+      min_processing_units                  = 500
+      max_processing_units                  = 2000
+      high_priority_cpu_utilization_percent = 65
+      storage_utilization_percent           = 95
+    }
+  }
+
+  expect_failures = [var.autoscaling]
+}
+
+run "rejects_autoscaling_max_below_min" {
+  command = plan
+
+  variables {
+    autoscaling = {
+      min_processing_units                  = 3000
+      max_processing_units                  = 2000
+      high_priority_cpu_utilization_percent = 65
+      storage_utilization_percent           = 95
+    }
+  }
+
+  expect_failures = [var.autoscaling]
+}
+
+run "rejects_autoscaling_max_above_10x_min" {
+  command = plan
+
+  variables {
+    autoscaling = {
+      min_processing_units                  = 1000
+      max_processing_units                  = 11000
+      high_priority_cpu_utilization_percent = 65
+      storage_utilization_percent           = 95
+    }
+  }
+
+  expect_failures = [var.autoscaling]
+}
+
+run "rejects_autoscaling_cpu_target_out_of_range" {
+  command = plan
+
+  variables {
+    autoscaling = {
+      min_processing_units                  = 1000
+      max_processing_units                  = 2000
+      high_priority_cpu_utilization_percent = 95
+      storage_utilization_percent           = 95
+    }
+  }
+
+  expect_failures = [var.autoscaling]
+}
+
+run "rejects_autoscaling_storage_target_out_of_range" {
+  command = plan
+
+  variables {
+    autoscaling = {
+      min_processing_units                  = 1000
+      max_processing_units                  = 2000
+      high_priority_cpu_utilization_percent = 65
+      storage_utilization_percent           = 100
+    }
+  }
+
+  expect_failures = [var.autoscaling]
+}

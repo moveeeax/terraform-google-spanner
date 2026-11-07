@@ -115,3 +115,44 @@ run "drop_protection_and_pitr_are_passed_through" {
     error_message = "database_dialect must be passed through to the database."
   }
 }
+
+run "no_autoscaling_means_no_autoscaling_config_block" {
+  assert {
+    condition     = length(google_spanner_instance.this.autoscaling_config) == 0
+    error_message = "autoscaling is null by default, so no autoscaling_config block should be emitted."
+  }
+}
+
+# num_nodes and processing_units are optional+computed, so their planned values
+# under the mock provider are not meaningful; that neither is sent alongside
+# autoscaling_config is enforced by the preconditions on the instance.
+run "autoscaling_produces_autoscaling_config" {
+  variables {
+    autoscaling = {
+      min_processing_units                  = 1000
+      max_processing_units                  = 5000
+      high_priority_cpu_utilization_percent = 65
+      storage_utilization_percent           = 95
+    }
+  }
+
+  assert {
+    condition     = one(one(google_spanner_instance.this.autoscaling_config).autoscaling_limits).min_processing_units == 1000
+    error_message = "autoscaling.min_processing_units must be wired into autoscaling_limits."
+  }
+
+  assert {
+    condition     = one(one(google_spanner_instance.this.autoscaling_config).autoscaling_limits).max_processing_units == 5000
+    error_message = "autoscaling.max_processing_units must be wired into autoscaling_limits."
+  }
+
+  assert {
+    condition     = one(one(google_spanner_instance.this.autoscaling_config).autoscaling_targets).high_priority_cpu_utilization_percent == 65
+    error_message = "autoscaling.high_priority_cpu_utilization_percent must be wired into autoscaling_targets."
+  }
+
+  assert {
+    condition     = one(one(google_spanner_instance.this.autoscaling_config).autoscaling_targets).storage_utilization_percent == 95
+    error_message = "autoscaling.storage_utilization_percent must be wired into autoscaling_targets."
+  }
+}

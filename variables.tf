@@ -20,7 +20,7 @@ variable "config" {
 }
 
 variable "num_nodes" {
-  description = "Number of nodes allocated to the instance. Mutually exclusive with processing_units; 1 node is equivalent to 1000 processing units. When both are null the instance is created with 1 node."
+  description = "Number of nodes allocated to the instance. Mutually exclusive with processing_units and autoscaling; 1 node is equivalent to 1000 processing units. When all three are null the instance is created with 1 node."
   type        = number
   default     = null
 
@@ -36,7 +36,7 @@ variable "num_nodes" {
 }
 
 variable "processing_units" {
-  description = "Processing units allocated to the instance. Mutually exclusive with num_nodes; 1000 processing units is equivalent to 1 node. Must be a multiple of 100 below 1000 and a multiple of 1000 at or above 1000."
+  description = "Processing units allocated to the instance. Mutually exclusive with num_nodes and autoscaling; 1000 processing units is equivalent to 1 node. Must be a multiple of 100 below 1000 and a multiple of 1000 at or above 1000."
   type        = number
   default     = null
 
@@ -51,6 +51,64 @@ variable "processing_units" {
       false
     )
     error_message = "processing_units must be a multiple of 100 below 1000, and a multiple of 1000 at or above 1000."
+  }
+}
+
+variable "autoscaling" {
+  description = <<-EOT
+    Managed autoscaling for the instance. Mutually exclusive with num_nodes and processing_units.
+    Null (the default) keeps a fixed-size instance.
+
+      min_processing_units                  - Lower capacity limit. Multiple of 1000.
+      max_processing_units                  - Upper capacity limit. Multiple of 1000, at least
+                                              min_processing_units and at most 10x it.
+      high_priority_cpu_utilization_percent - Target high-priority CPU utilization, 10-90.
+      storage_utilization_percent           - Target storage utilization, 10-99.
+  EOT
+
+  type = object({
+    min_processing_units                  = number
+    max_processing_units                  = number
+    high_priority_cpu_utilization_percent = number
+    storage_utilization_percent           = number
+  })
+  default = null
+
+  validation {
+    condition = var.autoscaling == null || try(
+      var.autoscaling.min_processing_units >= 1000 &&
+      var.autoscaling.min_processing_units % 1000 == 0 &&
+      var.autoscaling.max_processing_units % 1000 == 0,
+      false
+    )
+    error_message = "autoscaling.min_processing_units and max_processing_units must be multiples of 1000 (the smallest autoscaled instance is 1000 processing units)."
+  }
+
+  validation {
+    condition = var.autoscaling == null || try(
+      var.autoscaling.max_processing_units >= var.autoscaling.min_processing_units &&
+      var.autoscaling.max_processing_units <= 10 * var.autoscaling.min_processing_units,
+      false
+    )
+    error_message = "autoscaling.max_processing_units must be at least min_processing_units and at most 10x min_processing_units."
+  }
+
+  validation {
+    condition = var.autoscaling == null || try(
+      var.autoscaling.high_priority_cpu_utilization_percent >= 10 &&
+      var.autoscaling.high_priority_cpu_utilization_percent <= 90,
+      false
+    )
+    error_message = "autoscaling.high_priority_cpu_utilization_percent must be between 10 and 90 inclusive."
+  }
+
+  validation {
+    condition = var.autoscaling == null || try(
+      var.autoscaling.storage_utilization_percent >= 10 &&
+      var.autoscaling.storage_utilization_percent <= 99,
+      false
+    )
+    error_message = "autoscaling.storage_utilization_percent must be between 10 and 99 inclusive."
   }
 }
 

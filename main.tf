@@ -1,8 +1,9 @@
 locals {
-  # Exactly one of num_nodes / processing_units may reach the provider.
-  # When the caller sets neither, fall back to a single node so that the
-  # historical default (num_nodes = 1) is preserved.
-  effective_num_nodes = var.processing_units == null ? coalesce(var.num_nodes, 1) : null
+  # At most one of num_nodes / processing_units / autoscaling may reach the
+  # provider. When the caller sets none of them, fall back to a single node so
+  # that the historical default (num_nodes = 1) is preserved. With autoscaling
+  # both fixed-size fields become output-only and must stay null.
+  effective_num_nodes = var.processing_units == null && var.autoscaling == null ? coalesce(var.num_nodes, 1) : null
 
   # Databases the caller has left completely unprotected: `terraform destroy`
   # (or simply removing the key from `var.databases`) will drop them, and a
@@ -28,12 +29,35 @@ resource "google_spanner_instance" "this" {
   num_nodes        = local.effective_num_nodes
   processing_units = var.processing_units
 
+  dynamic "autoscaling_config" {
+    for_each = var.autoscaling == null ? [] : [var.autoscaling]
+
+    content {
+      autoscaling_limits {
+        min_processing_units = autoscaling_config.value.min_processing_units
+        max_processing_units = autoscaling_config.value.max_processing_units
+      }
+
+      autoscaling_targets {
+        high_priority_cpu_utilization_percent = autoscaling_config.value.high_priority_cpu_utilization_percent
+        storage_utilization_percent           = autoscaling_config.value.storage_utilization_percent
+      }
+    }
+  }
+
   lifecycle {
     # Cross-variable checks cannot live in `variable "..." { validation }`
     # while required_version is >= 1.5, so they are enforced here instead.
     precondition {
       condition     = !(var.num_nodes != null && var.processing_units != null)
       error_message = "num_nodes and processing_units are mutually exclusive: set at most one of them (1 node == 1000 processing units)."
+    }
+
+    # With autoscaling the capacity is managed by Spanner; a fixed size next to
+    # it would be ignored by the API at best.
+    precondition {
+      condition     = var.autoscaling == null || (var.num_nodes == null && var.processing_units == null)
+      error_message = "autoscaling is mutually exclusive with num_nodes and processing_units: set either a fixed size or autoscaling, not both."
     }
 
     # Guards the local above: whatever the inputs, exactly one of the two
