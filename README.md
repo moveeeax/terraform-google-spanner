@@ -72,12 +72,41 @@ processing units**. Set at most one:
 Setting both fails at plan time via a resource precondition rather than at apply
 time via a provider error.
 
+### Autoscaling
+
+Instead of a fixed size, set `autoscaling` and let Spanner's managed autoscaler
+move capacity between two limits:
+
+```hcl
+  # inside module "spanner" { ... }, with num_nodes and processing_units unset
+  autoscaling = {
+    min_processing_units                  = 1000
+    max_processing_units                  = 5000
+    high_priority_cpu_utilization_percent = 65
+    storage_utilization_percent           = 95
+  }
+```
+
+- `autoscaling` is mutually exclusive with `num_nodes` and `processing_units`.
+  Setting it together with either fails at plan time via a resource
+  precondition. While autoscaling is on, the API treats the instance's node
+  count and processing units as output-only.
+- Both limits must be multiples of 1000, so the smallest autoscaled instance is
+  one node. `max_processing_units` must be at least `min_processing_units` and
+  at most 10x it.
+- `high_priority_cpu_utilization_percent` must be within 10-90 and
+  `storage_utilization_percent` within 10-99.
+
+These ranges come from the
+[AutoscalingConfig API reference](https://docs.cloud.google.com/spanner/docs/reference/rest/v1/AutoscalingConfig)
+and are validated at plan time.
+
 ## Requirements
 
 | Name      | Version  |
 |-----------|----------|
 | terraform | >= 1.5   |
-| google    | >= 5.0   |
+| google    | >= 5.6   |
 
 The test suite under `tests/` additionally needs Terraform >= 1.7 for
 `mock_provider`. That requirement is not imposed on consumers of the module.
@@ -92,8 +121,20 @@ The test suite under `tests/` additionally needs Terraform >= 1.7 for
 | `config`           | Instance configuration.                                            | `string`      | `"regional-us-central1"`  |    no    |
 | `num_nodes`        | Nodes allocated to the instance. Excludes `processing_units`.      | `number`      | `null` (effectively `1`)  |    no    |
 | `processing_units` | Processing units allocated to the instance. Excludes `num_nodes`.  | `number`      | `null`                    |    no    |
+| `autoscaling`      | Managed autoscaling. Excludes both fixed sizes. See below.         | `object`      | `null`                    |    no    |
 | `databases`        | Databases keyed by name. See below.                                | `map(object)` | `{}`                      |    no    |
 | `labels`           | Labels applied to the instance.                                    | `map(string)` | `{}`                      |    no    |
+
+### `autoscaling` object
+
+All attributes are required when `autoscaling` is set.
+
+| Attribute                               | Type     | Description                                                     |
+|-----------------------------------------|----------|-----------------------------------------------------------------|
+| `min_processing_units`                  | `number` | Lower capacity limit. Multiple of 1000.                         |
+| `max_processing_units`                  | `number` | Upper capacity limit. Multiple of 1000, between 1x and 10x min. |
+| `high_priority_cpu_utilization_percent` | `number` | Target high-priority CPU utilization, 10-90.                    |
+| `storage_utilization_percent`           | `number` | Target storage utilization, 10-99.                              |
 
 ### `databases` object
 
